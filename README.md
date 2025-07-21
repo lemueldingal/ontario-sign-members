@@ -1,2 +1,4 @@
-# ontario-sign-members
-Scrape test for Ontario Sign Association
+To initialize
+
+pip install pandas selenium beautifulsoup4 openpyxl
+# pip install webdriver-manager
