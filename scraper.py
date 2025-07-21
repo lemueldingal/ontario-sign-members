@@ -49,17 +49,48 @@ def scrape_profile(url, member_type=''):
         profile_data["Contact Name"] = f"{fields.get('First name', '')} {fields.get('Last name', '')}".strip()
         profile_data["Company Name"] = fields.get("Company", "")
         profile_data["Email"] = fields.get("Email", "")
-        profile_data["Website"] = fields.get("Web Site", "")
+        website_raw = fields.get("Web Site", "").strip()
+        profile_data["Website"] = website_raw
         profile_data["City"] = fields.get("City", "")
         profile_data["Province"] = fields.get("Province/State", "")
 
+        # Try to find a valid phone number from the member website
+        phone = ""
+        if website_raw:
+            if not website_raw.startswith("http"):
+                website_raw = "https://" + website_raw  # Default to https
+
+            tried_http = False
+            try:
+                print("Attempt phone scrape: " + website_raw)
+                driver.get(website_raw)
+                WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+                site_soup = BeautifulSoup(driver.page_source, "html.parser")
+                tel_link = site_soup.select_one('a[href^="tel:"]')
+                if tel_link:
+                    phone = tel_link.get("href", "").replace("tel:", "").strip()
+            except:
+                if not tried_http:
+                    # Retry with http instead of https
+                    try:
+                        driver.get(website_raw.replace("https://", "http://"))
+                        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+                        site_soup = BeautifulSoup(driver.page_source, "html.parser")
+                        tel_link = site_soup.select_one('a[href^="tel:"]')
+                        if tel_link:
+                            phone = tel_link.get("href", "").replace("tel:", "").strip()
+                    except Exception as fallback_error:
+                        print(f"Phone not found at {website_raw}: {fallback_error}")
+
+        profile_data["Phone"] = phone
         return profile_data
+
     except Exception as e:
         print(f"Error scraping profile {url}: {e}")
         return {}
 
 try:
-    print("✅ Browser launched.")
+    print("Browser launched.")
     driver.get("https://www.ontariosignassociation.com/member-directory")
 
     WebDriverWait(driver, 10).until(
@@ -110,7 +141,7 @@ try:
 
     all_members = []
     for i, (url, mtype) in enumerate(member_links, 1):
-        print(f"🔍 [{i}/{len(member_links)}] Scraping {url}")
+        print(f"[{i}/{len(member_links)}] Scraping {url}")
         profile_data = scrape_profile(url, mtype)
         if profile_data:
             all_members.append(profile_data)
